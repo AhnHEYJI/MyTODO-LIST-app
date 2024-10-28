@@ -10,18 +10,13 @@ import {
   doc,
   deleteDoc,
   getDocs,
-  QuerySnapshot,
+  query,
+  orderBy,
 } from "firebase/firestore";
 
-// DB 파이어베이스설정//
-// Import the functions you need from the SDKs you need
+// Firebase 초기화 코드
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 
 const firebaseConfig = {
   apiKey: "AIzaSyCoTdQtuAwJ5FVMMj1WXxeyTsB6565c_5Q",
@@ -33,8 +28,7 @@ const firebaseConfig = {
   measurementId: "G-3MHNM59E2D",
 };
 
-// Initialize Firebase
-
+// Firebase 초기화
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const db = getFirestore(app);
@@ -99,72 +93,49 @@ const TodoItemList = (props) => {
     </div>
   );
 };
+
 function App() {
   const [todoItemList, setTodoItemList] = useState([]);
-  /* todo아이템에 있는 모든 아이템을 읽어오는 코드*/
-    useEffect(() => {
-        getDocs(collection(db, "todoItem")).then((querySnapshot) => {
-          const firestoreTodoItemList = [];
-          querySnapshot.forEach((doc) => {
-            firestoreTodoItemList.push({
-              id: doc.id,
-              todoItemContent: doc.data().todoItemContent,
-             isFinished: doc.data().isFinished,
-           });
-          });
-          setTodoItemList(firestoreTodoItemList);
-        });
-      }, []);
-    
 
-  const onSubmit = async (newTodoItem) => {
-    const docRef = await addDoc(collection(db, "todoItem"), {
-      todoItemContent: newTodoItem,
-      isFinished: false,
+  const syncTodoItemListStateWithFirestore = () => {
+    const q = query(collection(db, "todoItem"), orderBy("createdTime", "desc"));
+    getDocs(q).then((querySnapshot) => {
+      const firestoreTodoItemList = [];
+      querySnapshot.forEach((doc) => {
+        firestoreTodoItemList.push({
+          id: doc.id,
+          todoItemContent: doc.data().todoItemContent,
+          isFinished: doc.data().isFinished,
+          createdTime: doc.data().createdTime ?? 0,
+        });
+      });
+      setTodoItemList(firestoreTodoItemList);
     });
-    setTodoItemList([
-      ...todoItemList,
-      {
-        id: docRef.id,
-        todoItemContent: newTodoItem,
-        isFinished: false,
-      },
-    ]);
   };
 
-  //클릭했을때 db상태변경
+  useEffect(() => {
+    syncTodoItemListStateWithFirestore();
+  }, []);
+
+  const onSubmit = async (newTodoItem) => {
+    await addDoc(collection(db, "todoItem"), {
+      todoItemContent: newTodoItem,
+      isFinished: false,
+      createdTime: Math.floor(Date.now() / 1000),
+    });
+    syncTodoItemListStateWithFirestore();
+  };
+
   const onTodoItemClick = async (clickedTodoItem) => {
     const todoItemRef = doc(db, "todoItem", clickedTodoItem.id);
-    await setDoc(
-      todoItemRef,
-      { isFinished: !clickedTodoItem.isFinished },
-      { merge: true }
-    );
-
-    setTodoItemList(
-      todoItemList.map((todoItem) => {
-        if (clickedTodoItem.id === todoItem.id) {
-          return {
-            id: clickedTodoItem.id,
-            todoItemContent: clickedTodoItem.todoItemContent,
-            isFinished: !clickedTodoItem.isFinished,
-          };
-        } else {
-          return todoItem;
-        }
-      })
-    );
+    await setDoc(todoItemRef, { isFinished: !clickedTodoItem.isFinished }, { merge: true });
+    syncTodoItemListStateWithFirestore();
   };
 
   const onRemoveClick = async (removedTodoItem) => {
-    const todoItemRef = doc(db, "todoItem", removedTodoItem.id); //버튼을 이용해 지울때 DB 환경도 같이 삭제되는 로직입니다.//
+    const todoItemRef = doc(db, "todoItem", removedTodoItem.id);
     await deleteDoc(todoItemRef);
-
-    setTodoItemList(
-      todoItemList.filter((todoItem) => {
-        return todoItem.id !== removedTodoItem.id;
-      })
-    );
+    syncTodoItemListStateWithFirestore();
   };
 
   return (
@@ -178,4 +149,5 @@ function App() {
     </div>
   );
 }
+
 export default App;
