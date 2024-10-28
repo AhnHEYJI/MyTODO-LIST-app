@@ -1,5 +1,5 @@
 import "./App.css";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import {
@@ -9,6 +9,8 @@ import {
   setDoc,
   doc,
   deleteDoc,
+  getDocs,
+  QuerySnapshot,
 } from "firebase/firestore";
 
 // DB 파이어베이스설정//
@@ -99,6 +101,21 @@ const TodoItemList = (props) => {
 };
 function App() {
   const [todoItemList, setTodoItemList] = useState([]);
+  /* todo아이템에 있는 모든 아이템을 읽어오는 코드*/
+    useEffect(() => {
+        getDocs(collection(db, "todoItem")).then((querySnapshot) => {
+          const firestoreTodoItemList = [];
+          querySnapshot.forEach((doc) => {
+            firestoreTodoItemList.push({
+              id: doc.id,
+              todoItemContent: doc.data().todoItemContent,
+             isFinished: doc.data().isFinished,
+           });
+          });
+          setTodoItemList(firestoreTodoItemList);
+        });
+      }, []);
+    
 
   const onSubmit = async (newTodoItem) => {
     const docRef = await addDoc(collection(db, "todoItem"), {
@@ -140,7 +157,7 @@ function App() {
   };
 
   const onRemoveClick = async (removedTodoItem) => {
-    const todoItemRef = doc(db, "todoItem", removedTodoItem.id); //버튼을 이용해 지울때 DB 환경도 같이 삭제되는 로직입니다./
+    const todoItemRef = doc(db, "todoItem", removedTodoItem.id); //버튼을 이용해 지울때 DB 환경도 같이 삭제되는 로직입니다.//
     await deleteDoc(todoItemRef);
 
     setTodoItemList(
